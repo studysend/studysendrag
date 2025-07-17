@@ -1,0 +1,29 @@
+# Development override for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  # Note: Using external Neon PostgreSQL database for development too
+  # No local PostgreSQL service needed
+
+  # Development API with hot reload
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      # Use same external Neon database for development
+      DATABASE_URL: ${DATABASE_URL:-postgresql://neondb_owner:vCFIsy2nER8c@ep-wandering-feather-a4mv42v8.us-east-1.aws.neon.tech/neondb?sslmode=require}
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+      RELOAD: "true"
+    volumes:
+      - .:/app  # Mount source code for hot reload
+      - /app/__pycache__  # Exclude pycache
+    ports:
+      - "8001:8000"  # Different port for dev
+    command: ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # Remove nginx in development
+  nginx:
+    profiles:
+      - production  # Only run in production profile

@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+psycopg2-binary
+boto3
+python-dotenv
+pydantic>=2.8.0
+sqlalchemy
+pgvector
+openai
+llama-cloud
+llama-index
+python-multipart
+asyncio
+apscheduler
+redis>=5.0.0
+hiredis>=2.2.0

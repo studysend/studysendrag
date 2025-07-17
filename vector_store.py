@@ -1,0 +1,232 @@
+import os
+import hashlib
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, text
+from openai import OpenAI
+from typing import List, Dict, Any, Optional
+import logging
+from dotenv import load_dotenv
+from models import DocumentChunk
+from redis_service import redis_service
+
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+class VectorStore:
+    def __init__(self):
+        # Database connection
+        self.database_url = os.getenv("DATABASE_URL")
+        self.engine = create_engine(self.database_url)
+        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        
+        # Initialize OpenAI client for embeddings
+        self.openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        self.embedding_model = "text-embedding-3-small"
+        self.embedding_dim = 1536  # text-embedding-3-small produces 1536-dimensional embeddings
+    
+    def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings using OpenAI's text-embedding-3-small with Redis caching"""
+        embeddings = []
+        texts_to_generate = []
+        cache_keys = []
+        
+        # Check cache for each text
+        for text in texts:
+            cached_embedding = redis_service.get_cached_embedding(text)
+            if cached_embedding:
+                embeddings.append(cached_embedding)
+                cache_keys.append(None)  # Mark as cached
+                logger.debug(f"Using cached embedding for text (length: {len(text)})")
+            else:
+                embeddings.append(None)  # Placeholder
+                texts_to_generate.append(text)
+                cache_keys.append(text)  # Mark for generation
+        
+        # Generate embeddings for uncached texts
+        if texts_to_generate:
+            try:
+                logger.info(f"Generating {len(texts_to_generate)} new embeddings via OpenAI API")
+                response = self.openai_client.embeddings.create(
+                    model=self.embedding_model,
+                    input=texts_to_generate,
+                    encoding_format="float"
+                )
+                
+                generated_embeddings = [embedding.embedding for embedding in response.data]
+                
+                # Fill in the generated embeddings and cache them
+                gen_index = 0
+                for i, cache_key in enumerate(cache_keys):
+                    if cache_key is not None:  # This was not cached
+                        embedding = generated_embeddings[gen_index]
+                        embeddings[i] = embedding
+                        
+                        # Cache the embedding
+                        redis_service.cache_embedding(cache_key, embedding)
+                        gen_index += 1
+                
+            except Exception as e:
+                logger.error(f"Failed to generate embeddings: {str(e)}")
+                raise
+        
+        return embeddings
+
+    def add_document_chunks(self, chunks: List[str], metadata_list: List[Dict[str, Any]]) -> bool:
+        """Add document chunks to pgvector database"""
+        db = self.SessionLocal()
+        try:
+            # Generate embeddings using OpenAI
+            embeddings = self.generate_embeddings(chunks)
+            
+            # Create DocumentChunk objects
+            chunk_objects = []
+            for i, (chunk, metadata) in enumerate(zip(chunks, metadata_list)):
+                chunk_obj = DocumentChunk(
+                    post_id=metadata['post_id'],
+                    course_id=metadata['course_id'],
+                    doc_name=metadata['doc_name'],
+                    post_name=metadata.get('post_name', ''),
+                    chunk_text=chunk,
+                    chunk_index=metadata['chunk_index'],
+                    total_chunks=metadata['total_chunks'],
+                    embedding=embeddings[i]
+                )
+                chunk_objects.append(chunk_obj)
+            
+            # Add all chunks to database
+            db.add_all(chunk_objects)
+            db.commit()
+            
+            logger.info(f"Added {len(chunks)} chunks to pgvector database")
+            return True
+            
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to add chunks to vector store: {str(e)}")
+            return False
+        finally:
+            db.close()
+    
+    def search_similar_chunks(self, query: str, course_id: Optional[int] = None, 
+                            n_results: int = 5) -> List[Dict[str, Any]]:
+        """Search for similar document chunks using pgvector cosine similarity with Redis caching"""
+        # Create cache key for this search
+        query_hash = hashlib.md5(f"{query}:{n_results}".encode()).hexdigest()
+        
+        # Check cache first
+        cached_results = redis_service.get_cached_similarity_search(query_hash, course_id or 0)
+        if cached_results:
+            logger.debug(f"Using cached similarity search results for query hash: {query_hash}")
+            return cached_results
+        
+        db = self.SessionLocal()
+        try:
+            # Generate query embedding using OpenAI (with caching)
+            query_embeddings = self.generate_embeddings([query])
+            query_embedding = query_embeddings[0]
+            
+            # Build SQL query with pgvector similarity search
+            # Convert embedding list to string format for PostgreSQL vector type
+            embedding_str = '[' + ','.join(map(str, query_embedding)) + ']'
+            
+            if course_id:
+                # Use string formatting to avoid parameter binding issues with vector type
+                sql_query = text(f"""
+                    SELECT chunk_text, post_id, course_id, doc_name, post_name, 
+                           chunk_index, total_chunks,
+                           1 - (embedding <=> '{embedding_str}'::vector) as similarity_score
+                    FROM document_chunks 
+                    WHERE course_id = :course_id
+                    ORDER BY embedding <=> '{embedding_str}'::vector
+                    LIMIT :n_results
+                """)
+                result = db.execute(sql_query, {
+                    "course_id": course_id,
+                    "n_results": n_results
+                })
+            else:
+                sql_query = text(f"""
+                    SELECT chunk_text, post_id, course_id, doc_name, post_name, 
+                           chunk_index, total_chunks,
+                           1 - (embedding <=> '{embedding_str}'::vector) as similarity_score
+                    FROM document_chunks 
+                    ORDER BY embedding <=> '{embedding_str}'::vector
+                    LIMIT :n_results
+                """)
+                result = db.execute(sql_query, {
+                    "n_results": n_results
+                })
+            
+            # Format results
+            formatted_results = []
+            for row in result.fetchall():
+                formatted_results.append({
+                    "content": row[0],
+                    "metadata": {
+                        "post_id": row[1],
+                        "course_id": row[2],
+                        "doc_name": row[3],
+                        "post_name": row[4],
+                        "chunk_index": row[5],
+                        "total_chunks": row[6]
+                    },
+                    "similarity_score": float(row[7])
+                })
+            
+            # Cache the results
+            redis_service.cache_similarity_search(query_hash, course_id or 0, formatted_results)
+            
+            return formatted_results
+            
+        except Exception as e:
+            logger.error(f"Search failed: {str(e)}")
+            return []
+        finally:
+            db.close()
+    
+    def get_course_document_count(self, course_id: int) -> int:
+        """Get number of document chunks for a specific course"""
+        db = self.SessionLocal()
+        try:
+            count = db.query(DocumentChunk).filter(
+                DocumentChunk.course_id == course_id
+            ).count()
+            return count
+        except Exception as e:
+            logger.error(f"Failed to get document count: {str(e)}")
+            return 0
+        finally:
+            db.close()
+    
+    def delete_document_chunks(self, post_id: int) -> bool:
+        """Delete all chunks for a specific document"""
+        db = self.SessionLocal()
+        try:
+            # Delete all chunks for this post
+            deleted_count = db.query(DocumentChunk).filter(
+                DocumentChunk.post_id == post_id
+            ).delete()
+            
+            db.commit()
+            logger.info(f"Deleted {deleted_count} chunks for post {post_id}")
+            return True
+            
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to delete chunks for post {post_id}: {str(e)}")
+            return False
+        finally:
+            db.close()
+    
+    def get_total_chunks_count(self) -> int:
+        """Get total number of chunks in the database"""
+        db = self.SessionLocal()
+        try:
+            count = db.query(DocumentChunk).count()
+            return count
+        except Exception as e:
+            logger.error(f"Failed to get total chunks count: {str(e)}")
+            return 0
+        finally:
+            db.close()

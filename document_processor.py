@@ -1,0 +1,132 @@
+import os
+import boto3
+from typing import List, Dict, Any
+import tempfile
+from llama_cloud_services import LlamaParse
+from dotenv import load_dotenv
+import logging
+
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+class DocumentProcessor:
+    def __init__(self):
+        self.s3_client = boto3.client(
+            's3',
+            aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+            region_name=os.getenv('AWS_REGION', 'us-east-2')
+        )
+        self.bucket_name = os.getenv('AWS_BUCKET_NAME')
+        self.llama_parser = None
+        
+    def _init_llama_parser(self, file_name: str):
+        """Initialize LlamaParse with specific file configuration"""
+        return LlamaParse(
+            api_key=os.getenv('LLAMA_CLOUD_API_KEY'),
+            result_type="text",
+            verbose=True
+        )
+    
+    def download_from_s3(self, doc_url: str, local_path: str) -> bool:
+        """Download document from S3 using doc_url as key"""
+        try:
+            # Construct the S3 key by adding .pdf extension if not present
+            s3_key = doc_url if doc_url.endswith('.pdf') else f"{doc_url}.pdf"
+            
+            logger.info(f"Downloading from S3: bucket={self.bucket_name}, key={s3_key}")
+            self.s3_client.download_file(self.bucket_name, s3_key, local_path)
+            logger.info(f"Successfully downloaded {s3_key} to {local_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to download {doc_url} (key: {s3_key if 's3_key' in locals() else doc_url}): {str(e)}")
+            return False
+    
+    def parse_pdf_with_llama(self, file_path: str, file_name: str) -> str:
+        """Parse PDF using LlamaParse"""
+        try:
+            parser = self._init_llama_parser(file_name)
+            
+            # Parse the PDF file using the file path
+            logger.info(f"Parsing PDF with LlamaParse: {file_name}")
+            parsed_result = parser.load_data(file_path)
+            
+            # Extract text content from parsed result
+            if isinstance(parsed_result, list) and len(parsed_result) > 0:
+                # LlamaParse typically returns a list of Document objects
+                text_content = ""
+                for doc in parsed_result:
+                    if hasattr(doc, 'text'):
+                        text_content += doc.text + "\n"
+                    elif hasattr(doc, 'get_content'):
+                        text_content += doc.get_content() + "\n"
+                    else:
+                        text_content += str(doc) + "\n"
+                return text_content.strip()
+            elif isinstance(parsed_result, str):
+                return parsed_result
+            else:
+                # Handle other response formats
+                return str(parsed_result)
+                
+        except Exception as e:
+            logger.error(f"Failed to parse PDF {file_name}: {str(e)}")
+            raise
+    
+    def process_document(self, doc_url: str, doc_name: str) -> Dict[str, Any]:
+        """Complete document processing pipeline"""
+        try:
+            # Create temporary file
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            try:
+                # Download from S3
+                if not self.download_from_s3(doc_url, temp_path):
+                    return {"success": False, "error": "Failed to download from S3"}
+                
+                # Parse with LlamaParse
+                parsed_content = self.parse_pdf_with_llama(temp_path, doc_name)
+                
+                return {
+                    "success": True,
+                    "parsed_content": parsed_content,
+                    "doc_name": doc_name,
+                    "doc_url": doc_url
+                }
+                
+            finally:
+                # Clean up temporary file
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                    
+        except Exception as e:
+            logger.error(f"Document processing failed for {doc_name}: {str(e)}")
+            return {"success": False, "error": str(e)}
+    
+    def chunk_text(self, text: str, chunk_size: int = 1000, overlap: int = 200) -> List[str]:
+        """Split text into overlapping chunks"""
+        if len(text) <= chunk_size:
+            return [text]
+        
+        chunks = []
+        start = 0
+        
+        while start < len(text):
+            end = start + chunk_size
+            
+            # Try to break at sentence boundary
+            if end < len(text):
+                # Look for sentence endings within the last 100 characters
+                sentence_end = text.rfind('.', start, end)
+                if sentence_end > start + chunk_size - 100:
+                    end = sentence_end + 1
+            
+            chunk = text[start:end].strip()
+            if chunk:
+                chunks.append(chunk)
+            
+            start = end - overlap
+            
+        return chunks
