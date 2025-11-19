@@ -249,53 +249,59 @@ class ChatService:
 **CRITICAL**: This should be scannable and quick to read - a study aid, not a detailed explanation."""
 
         # Default tutor prompt for normal chat
-        return f"""You are a knowledgeable and helpful tutor helping students learn from the document: "{post_name}".
+        return f"""You are Study Send Pal, a knowledgeable and friendly AI tutor specializing in {subject} for {grade} students.
 
-Your Teaching Context:
-- Subject Area: {subject}
-- Target Audience: {grade}
-- Category: {category}
-- Primary Material: {post_name}
+YOUR ROLE:
+You help students understand concepts and learn from their study materials. When students ask questions, you provide clear, educational responses that connect general knowledge with specific content from their readings.
 
-YOUR ROLE AS A TUTOR:
-You are like a friendly teacher who helps students understand their course material. When students ask questions:
+HOW TO RESPOND:
 
-1. **Provide Context First**: If a student asks about a concept (like "What is React?"), start with a brief 1-2 sentence explanation to orient them.
+1. **Answer the Question Directly**:
+   - Start with a clear, direct answer to what they asked
+   - Provide a concise explanation (2-4 sentences)
+   - Define key terms and concepts
 
-2. **Connect to the Document**: Then IMMEDIATELY check the provided document sources [Source 1], [Source 2], etc. and:
-   - **If the topic IS in the sources**: Explain how it appears in their document with specific details
-   - **If the topic is NOT in the sources**: Explain what related topics the document DOES cover and suggest those instead
+2. **Connect to Their Study Material**:
+   - Review the provided sources [Source 1], [Source 2], etc.
+   - If the topic appears in the sources, naturally weave in relevant information
+   - Reference specific concepts, examples, or details from the sources
+   - Make connections between the general concept and what they're studying
 
-3. **Stay Grounded in the Material**: Your primary role is to help students understand "{post_name}", not to be a general knowledge assistant. Always redirect to their actual study material.
+3. **Be Conversational and Natural**:
+   - Write like you're explaining to a friend or classmate
+   - Don't explicitly mention "the document", "your material", or document names
+   - Just naturally incorporate information from sources as if it's part of your explanation
+   - Example: Instead of "Looking at your document...", say "For instance..." or "In the context of..."
 
 RESPONSE PATTERNS:
 
-**When topic IS in document sources:**
-"**[Concept]** is [1-2 sentence explanation].
+**When sources contain relevant info:**
+"**[Concept]** is [direct explanation].
 
-Looking at your document '{post_name}', I can see this concept appears in [Source X] where it discusses [specific content from source]. The material explains [details from sources]..."
+[Naturally incorporate source material without calling it out explicitly]. For instance, [detail from source]... This relates to [another detail from source]..."
 
-**When topic is NOT in document sources:**
-"**[Concept]** is [1-2 sentence explanation].
+**When sources don't contain the topic:**
+"**[Concept]** is [direct explanation].
 
-However, I don't see this specific topic covered in '{post_name}'. Your document focuses on {subject}, specifically covering topics like [mention actual topics from context or general subject topics]. Would you like me to explain one of these topics from your material?"
+Based on what you're studying, you might be more interested in [related topics from subject area]. These concepts come up frequently in {subject} and are important for understanding [broader theme]."
 
 CRITICAL RULES:
-✓ Always check the provided sources [Source 1], [Source 2], etc. before responding
-✓ If sources contain relevant information, use ONLY that information in detail
-✓ If sources don't contain the topic, redirect to what the document DOES cover
-✓ Be conversational and encouraging, but stay focused on the student's actual study material
-✓ Brief conceptual explanations (1-2 sentences) are fine, but then focus on the document
+✓ Answer questions directly and clearly first
+✓ Check provided sources and incorporate relevant information naturally
+✓ Never explicitly mention "the document", document names, or "your material"
+✓ Be conversational - write like a knowledgeable tutor, not a document assistant
+✓ Stay educational and focused on helping students learn
+✓ Use markdown formatting for clarity, but keep it natural
 
 FORMATTING RULES:
-- Use clean markdown: ## for sections, ### for subsections
-- Use bullet points (-) for lists, numbered lists (1., 2.) for steps
-- Use **bold** for key terms and concepts
-- Use *italics* for emphasis
-- Write in clear, conversational paragraphs
+- Use **bold** for key terms and important concepts
+- Use *italics* for emphasis or examples
+- Use bullet points for lists of features or characteristics
+- Use numbered lists only for sequential steps or processes
+- Keep paragraphs concise and readable
 - NO separator lines (====== or ------)
-- NO metadata headers like "Document: ..."
-- Keep it friendly and educational"""
+- NO document metadata or references
+- Be friendly, clear, and educational"""
     
     def generate_response(self, query: str, session_id: int, post_id: Optional[int] = None, 
                          course_id: Optional[int] = None, post_info: Optional[Dict[str, Any]] = None,
@@ -389,7 +395,7 @@ FORMATTING RULES:
                 valid_chunks = [chunk for chunk in relevant_chunks if chunk.get('similarity_score', 0) > 0.3]
                 
                 if valid_chunks:
-                    context_text = f"\n\nRelevant content from {post_info.get('post_name', 'the document')}:\n"
+                    context_text = "\n\nRelevant content:\n"
                     for i, chunk in enumerate(valid_chunks, 1):
                         context_text += f"\n[Source {i}]: {chunk['content']}\n"
                         sources.append({
@@ -710,17 +716,42 @@ Teaching Guidelines:
             return f"Error generating document summary: {str(e)}"
     
     def is_summary_request(self, query: str) -> bool:
-        """Check if the user is requesting a document summary"""
-        summary_keywords = [
-            "summary", "summarize", "summarise", "overview", "what is this document about",
-            "document summary", "tell me about the document", "what does this document say",
-            "main points", "key points", "document overview", "brief", "explain the document",
-            "give me an overview", "what are the main points", "key concepts", "important points",
-            "document content", "what's in this document", "describe the document"
+        """Check if the user is requesting a document summary - must be explicit and complete"""
+        query_lower = query.lower().strip()
+
+        # More strict matching - only trigger on explicit document summary requests
+        # These patterns focus on the entire document, not specific questions
+        explicit_summary_patterns = [
+            "summarize this document",
+            "summarize the document",
+            "summarise this document",
+            "summarise the document",
+            "give me a summary",
+            "document summary",
+            "what is this document about",
+            "tell me about this document",
+            "what does this document say",
+            "document overview",
+            "give me an overview",
+            "overview of the document",
+            "overview of this document",
+            "what's in this document",
+            "describe this document",
+            "describe the document",
+            "explain this document",
+            "explain the document"
         ]
-        
-        query_lower = query.lower()
-        return any(keyword in query_lower for keyword in summary_keywords)
+
+        # Check for exact phrase matches (more precise)
+        for pattern in explicit_summary_patterns:
+            if pattern in query_lower:
+                # Additional check: make sure it's not part of a more specific question
+                # If the query is significantly longer than the pattern, it's likely a specific question
+                if len(query_lower) > len(pattern) + 20:
+                    continue
+                return True
+
+        return False
 
     def generate_streaming_response(self, query: str, session_id: int, post_id: Optional[int] = None,
                                    course_id: Optional[int] = None, post_info: Optional[Dict[str, Any]] = None,
@@ -809,18 +840,29 @@ Structure your explanation:
 Begin your explanation now."""
 
         elif action_type == "summarize-page":
-            return f"""Provide a concise summary (150-200 words) of this content from {post_name}.
+            # For summarize, we want the entire document, not just a page
+            return f"""Provide a comprehensive summary of the entire document "{post_name}".
 
-Content:
-{content}
+Based on all the content in the document, create a summary that includes:
 
-Include:
-- Main topic (1 sentence)
-- Key points (3-5 bullets)
-- Important details (2-3 sentences)
-- Connection to broader topic (1 sentence)
+## Document Summary
 
-Begin your summary now."""
+### Overview
+- Main topic and purpose of the document
+
+### Key Themes
+- 3-5 major themes or topics covered
+
+### Important Concepts
+- Critical concepts, formulas, or principles
+
+### Practical Applications
+- How this information can be applied
+
+### Conclusion
+- Main takeaways from the document
+
+Create a well-organized summary (250-350 words) covering the entire document."""
 
         return content
 
@@ -830,8 +872,9 @@ Begin your summary now."""
         """Generate streaming AI response with RAG context for a specific post"""
         logger.info(f"Generating streaming response with action_type: {action_type}")
         try:
-            # Handle quick actions separately - bypass RAG and use simple direct prompts
-            if action_type in ["generate-questions", "important-points", "explain-page", "summarize-page"]:
+            # Handle page-based quick actions separately - bypass RAG and use simple direct prompts
+            # Note: summarize-page is NOT in this list as it needs RAG to access entire document
+            if action_type in ["generate-questions", "important-points", "explain-page"]:
                 logger.info(f"Handling quick action: {action_type}")
 
                 # Create a simple system message
@@ -897,8 +940,14 @@ Begin your summary now."""
                 }
                 return
 
+            # Handle summarize-page action - use RAG to get entire document context
+            if action_type == "summarize-page":
+                logger.info(f"Handling summarize-page action with RAG for entire document")
+                # Let it fall through to the summary request handling below
+                # which will use generate_document_summary with RAG
+
             # Check if user is requesting a document summary
-            if self.is_summary_request(query):
+            if action_type == "summarize-page" or self.is_summary_request(query):
                 logger.info(f"Document summary requested for streaming, post {post_id}")
                 
                 # Save user message
@@ -1001,7 +1050,7 @@ Begin your summary now."""
                 valid_chunks = [chunk for chunk in relevant_chunks if chunk.get('similarity_score', 0) > 0.3]
                 
                 if valid_chunks:
-                    context_text = f"\n\nRelevant content from {post_info.get('post_name', 'the document')}:\n"
+                    context_text = "\n\nRelevant content:\n"
                     for i, chunk in enumerate(valid_chunks, 1):
                         context_text += f"\n[Source {i}]: {chunk['content']}\n"
                         sources.append({
@@ -1064,14 +1113,14 @@ Now identify and list the key points from this content:"""
                 if context_text:
                     user_message = f"""Question: {query}
 
-Document context from "{doc_name}":
+Relevant context for this topic:
 {context_text}
 
-Please check the sources above and answer accordingly."""
+Use the sources above to provide a comprehensive answer that connects the concept to the specific content provided."""
                 else:
                     user_message = f"""Question: {query}
 
-Note: No directly relevant content was found in the document "{doc_name}" for this specific question. Please provide a brief helpful explanation of the concept, then explain what the document does cover."""
+Note: No directly relevant content was found in the study material for this specific question. Please provide a clear explanation of the concept based on your knowledge of {subject}."""
 
             messages.append({"role": "user", "content": user_message})
 
