@@ -168,7 +168,7 @@ def update_course_index_status(course_id: int, status: str, document_count: int 
                 document_count=document_count,
                 chunk_count=chunk_count,
                 error_message=error_message,
-                last_indexed=datetime.utcnow() if status == 'completed' else None
+                last_indexed=datetime.utcnow()  # Always set timestamp
             )
             db.add(new_status)
         

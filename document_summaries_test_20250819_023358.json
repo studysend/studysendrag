@@ -1,0 +1,293 @@
+{
+  "test_metadata": {
+    "start_time": "2025-08-19T02:29:24.412908",
+    "total_documents": 20,
+    "base_url": "http://localhost:8000",
+    "end_time": "2025-08-19T02:33:58.894517",
+    "successful_summaries": 20,
+    "failed_summaries": 0,
+    "success_rate": "100.0%"
+  },
+  "summary_results": [
+    {
+      "post_id": 7,
+      "post_name": "FTMD the growth of avengers",
+      "doc_name": "2312.pdf",
+      "course_id": 39,
+      "session_id": 124,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but the content you've provided from the document \"FTMD the growth of avengers\" does not pertain to Anatomy and Physiology. It seems to focus on topics related to research in retrieval-augmented generation (RAG) and language models, which are not relevant to the subject matter of Anatomy and Physiology.\n\nIf you have specific questions or concepts within Anatomy and Physiology that you'd like to learn more about, please let me know! I'm here to help with explanations, examples, and any other assistance you may need in that area.",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:29:42.626564",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 8,
+      "post_name": "Test",
+      "doc_name": "resume updated.pdf",
+      "course_id": 59,
+      "session_id": 125,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I cannot provide a summary of the document \"Test\" as I don't have access to its specific content. However, I can help you with general Biochemistry concepts or answer specific questions you might have. Please feel free to ask!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:29:55.635511",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 9,
+      "post_name": "RAG applications and its workings",
+      "doc_name": "2312.pdf",
+      "course_id": 178,
+      "session_id": 126,
+      "summary_result": {
+        "success": true,
+        "summary_content": "The content you've provided from \"RAG applications and its workings\" appears to delve into advanced retrieval techniques and their applications in enhancing language models, particularly through a method referred to as Retrieval-Augmented Generation (RAG). Here’s a breakdown of the key concepts based on the excerpts:\n\n1. **Retrieval-Enhanced Generation**: RAG combines retrieval techniques with generative models. It uses both \"retrieval-enhanced generation\" and \"generation-enhanced retrieval,\" allowing models to both fetch relevant information and improve the generation of responses based on that information.\n\n2. **Iterative Refinement**: The process of retrieval is described as recursive, meaning that the model can refine its searches and outputs in multiple steps, continuously improving the relevance and accuracy of the information it provides.\n\n3. **Multi-Hop Retrieval**: This technique allows the model to explore deeper connections within graph-structured data, which involves pulling interconnected pieces of information that might not be directly linked but are relevant to the task at hand.\n\n4. **Adaptive Retrieval**: Methods such as Flare illustrate adaptive retrieval, where the model adjusts its retrieval strategies based on the specific context or task requirements. This adaptability helps in generating better-informed responses.\n\n5. **Knowledge Graphs**: These are utilized to maintain factual consistency and relevance by mapping out relationships between different concepts and entities. The granularity of the retrieval can vary, allowing the model to access information at different levels (like entities or triplets) depending on the needs of the task.\n\n6. **Challenges and Future Directions**: The document seems to address current challenges in RAG systems, including the integration of retrieval methods with language models and the unexpected impact of irrelevant documents on accuracy. It suggests that incorporating certain irrelevant information might actually improve the outcomes, highlighting the complexity of information retrieval systems.\n\nOverall, the document seems to focus on how retrieval techniques can enhance the performance of language models, the methods for improving retrieval accuracy, and the ongoing challenges in this area of research.\n\nIf you have specific questions about these concepts or need clarification on any part, feel free to ask!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:30:14.988459",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 10,
+      "post_name": "Learning electricity basics",
+      "doc_name": "elec_1.pdf",
+      "course_id": 46,
+      "session_id": 127,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I cannot provide a summary of the document \"Learning electricity basics\" as I do not have access to its content. However, I can help explain concepts related to electricity if you have specific topics or questions in mind! For example, I can discuss topics like electric charge, current, voltage, circuits, and more. Please let me know what you're interested in!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:30:28.341267",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 11,
+      "post_name": "Test6",
+      "doc_name": "Project Report on Clustering.pdf",
+      "course_id": 105,
+      "session_id": 128,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I cannot provide a summary of the document \"Test6\" as I don't have access to its specific content. However, I can help you understand various concepts in Criminal Justice or answer questions related to the subject. If you have specific topics from the document or areas you're interested in, please share them, and I'll do my best to assist you!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:30:41.510967",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 12,
+      "post_name": "Modern Artist",
+      "doc_name": "Project Report on Clustering.pdf",
+      "course_id": 3,
+      "session_id": 129,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I cannot provide a summary of the document \"Modern Artist,\" as my focus is on helping you understand Calculus concepts. If you have any specific questions about Calculus or need help with particular topics, feel free to ask!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:30:53.694079",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 13,
+      "post_name": "Test1",
+      "doc_name": "Final Project Report.pdf",
+      "course_id": 52,
+      "session_id": 130,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm unable to provide a summary of the document \"Test1\" as I don't have access to its specific content. However, if you have any questions related to AP Physics 1 concepts, or if you need help with specific topics, problems, or concepts typically covered in this course, feel free to ask! I'm here to help you understand and succeed in AP Physics 1.",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:31:06.907759",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 14,
+      "post_name": "Test",
+      "doc_name": "resume updated.pdf",
+      "course_id": 1,
+      "session_id": 131,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I cannot provide a summary of the document \"Test\" as I don't have access to its content. However, I can help you with specific Algebra I concepts or problems. If you have any questions or topics you'd like to discuss, please let me know!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:31:19.424787",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 15,
+      "post_name": "Test1",
+      "doc_name": "Final Project Report.pdf",
+      "course_id": 2,
+      "session_id": 132,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I cannot provide a summary of the document \"Test1\" as it is not available to me. However, I can help you with specific Algebra II concepts or problems if you have any questions related to that subject. Please feel free to ask!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:31:34.653522",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 16,
+      "post_name": "gray wolf",
+      "doc_name": "Final Project Report.pdf",
+      "course_id": 61,
+      "session_id": 133,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I cannot provide a summary of the document titled \"gray wolf\" as it does not contain relevant content related to Cellular Biology. However, if you have specific questions or topics within Cellular Biology that you'd like to discuss or learn more about, feel free to ask! I'm here to help you understand those concepts.",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:31:46.990272",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 17,
+      "post_name": "Test1",
+      "doc_name": "CV.pdf",
+      "course_id": 3,
+      "session_id": 134,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I cannot provide a summary of the document \"Test1\" as I do not have access to its specific content. However, I can help you understand various concepts in Calculus or assist you with any questions you might have related to it. If you have specific topics or problems from your Calculus studies that you need help with, feel free to share!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:31:59.947264",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 18,
+      "post_name": "Topic",
+      "doc_name": "resume updated.pdf",
+      "course_id": 41,
+      "session_id": 135,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I don't have access to the specific document titled \"Topic\" to provide a summary. However, I can help you with various Chemistry concepts and topics that are typically covered in high school. If you have a specific area of Chemistry you'd like to discuss or need help with, feel free to ask!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:32:13.358945",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 19,
+      "post_name": "Prem Kumar",
+      "doc_name": "Final Project Report.pdf",
+      "course_id": 1,
+      "session_id": 136,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I can't provide a summary of the document \"Prem Kumar\" as it appears to be outside my access or is not relevant to Algebra I concepts. However, I can help you with Algebra I topics such as equations, inequalities, functions, or any other specific questions you might have. Please let me know how I can assist you!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:32:26.469949",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 20,
+      "post_name": "hello",
+      "doc_name": "resume updated.pdf",
+      "course_id": 5,
+      "session_id": 137,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I can't provide a summary of the document \"hello\" as its content is not available to me. However, I can help you with any specific questions or topics related to Geometry. If there's a particular concept or problem you're struggling with, please let me know, and I'll be happy to assist you!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:32:39.267074",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 21,
+      "post_name": "Test1",
+      "doc_name": "Final Project Report.pdf",
+      "course_id": 1,
+      "session_id": 138,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I can't provide a summary of the document \"Test1\" as it is not available to me. However, I can help you understand specific Algebra I concepts or answer questions related to Algebra I topics. If you have any questions or need help with particular problems or concepts, feel free to ask!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:32:51.992264",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 22,
+      "post_name": "Basic of maths with a large pdf",
+      "doc_name": "202110030921.pdf",
+      "course_id": 4,
+      "session_id": 139,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I cannot provide a summary of the document \"Basic of maths with a large pdf\" as I do not have access to its content. However, I can help you with specific topics in elementary math, such as addition, subtraction, multiplication, division, fractions, and more. If you have any questions or need explanations on a particular topic, feel free to ask!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:33:07.428808",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 23,
+      "post_name": "Test",
+      "doc_name": "CV.pdf",
+      "course_id": 1,
+      "session_id": 140,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm unable to provide a summary of the document \"Test\" as I don't have access to its specific content. However, I can provide general help with Algebra I concepts if you have any specific questions or topics you'd like to discuss! Feel free to ask about equations, functions, inequalities, or any other Algebra I topics, and I'll be glad to assist you!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:33:20.228133",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 24,
+      "post_name": "Dynamic ABC algorithm",
+      "doc_name": "Dynamic_Power_System_Security_Analysis_U.pdf",
+      "course_id": 178,
+      "session_id": 141,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I cannot provide a summary of the document \"Dynamic ABC algorithm\" as it is not available for me to read. However, if you have specific concepts or topics from the document that you'd like to discuss or need help understanding, feel free to ask! I can provide general assistance related to AP Computer Science A concepts or help with any programming questions you may have.",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:33:33.336891",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 25,
+      "post_name": "Modern Artist",
+      "doc_name": "Final Project Report.pdf",
+      "course_id": 2,
+      "session_id": 142,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I’m sorry, but I cannot provide a summary of the document \"Modern Artist\" as it does not contain specific Algebra II content. However, I can help you with Algebra II concepts or problems that you may have. If there are particular topics or questions you need assistance with, feel free to ask!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:33:45.705692",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    },
+    {
+      "post_id": 26,
+      "post_name": "Toaster Check",
+      "doc_name": "Market Trends.pdf",
+      "course_id": 2,
+      "session_id": 143,
+      "summary_result": {
+        "success": true,
+        "summary_content": "I'm sorry, but I don't have access to the specific content of the document \"Toaster Check.\" However, I can help you with Algebra II concepts or any specific topics you might be studying. If you have any questions or need help with a particular area in Algebra II, feel free to ask!",
+        "response_type": "unknown",
+        "timestamp": "2025-08-19T02:33:58.894209",
+        "request_phrase": "Can you provide a comprehensive summary of this document?"
+      }
+    }
+  ]
+}

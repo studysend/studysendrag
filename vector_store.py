@@ -6,7 +6,7 @@ from openai import OpenAI
 from typing import List, Dict, Any, Optional
 import logging
 from dotenv import load_dotenv
-from models import DocumentChunk
+from models import DocumentChunk, DocumentSummary
 from redis_service import redis_service
 
 load_dotenv()
@@ -109,13 +109,15 @@ class VectorStore:
             db.close()
     
     def search_similar_chunks(self, query: str, course_id: Optional[int] = None, 
-                            n_results: int = 5) -> List[Dict[str, Any]]:
+                            post_id: Optional[int] = None, n_results: int = 5, 
+                            similarity_threshold: float = 0.5) -> List[Dict[str, Any]]:
         """Search for similar document chunks using pgvector cosine similarity with Redis caching"""
         # Create cache key for this search
         query_hash = hashlib.md5(f"{query}:{n_results}".encode()).hexdigest()
         
-        # Check cache first
-        cached_results = redis_service.get_cached_similarity_search(query_hash, course_id or 0)
+        # Check cache first (use post_id or course_id for caching)
+        cache_id = post_id if post_id else (course_id or 0)
+        cached_results = redis_service.get_cached_similarity_search(query_hash, cache_id)
         if cached_results:
             logger.debug(f"Using cached similarity search results for query hash: {query_hash}")
             return cached_results
@@ -130,7 +132,22 @@ class VectorStore:
             # Convert embedding list to string format for PostgreSQL vector type
             embedding_str = '[' + ','.join(map(str, query_embedding)) + ']'
             
-            if course_id:
+            if post_id:
+                # Filter by post_id
+                sql_query = text(f"""
+                    SELECT chunk_text, post_id, course_id, doc_name, post_name, 
+                           chunk_index, total_chunks,
+                           1 - (embedding <=> '{embedding_str}'::vector) as similarity_score
+                    FROM document_chunks 
+                    WHERE post_id = :post_id
+                    ORDER BY embedding <=> '{embedding_str}'::vector
+                    LIMIT :n_results
+                """)
+                result = db.execute(sql_query, {
+                    "post_id": post_id,
+                    "n_results": n_results
+                })
+            elif course_id:
                 # Use string formatting to avoid parameter binding issues with vector type
                 sql_query = text(f"""
                     SELECT chunk_text, post_id, course_id, doc_name, post_name, 
@@ -175,7 +192,7 @@ class VectorStore:
                 })
             
             # Cache the results
-            redis_service.cache_similarity_search(query_hash, course_id or 0, formatted_results)
+            redis_service.cache_similarity_search(query_hash, cache_id, formatted_results)
             
             return formatted_results
             
@@ -199,6 +216,20 @@ class VectorStore:
         finally:
             db.close()
     
+    def get_post_document_count(self, post_id: int) -> int:
+        """Get number of document chunks for a specific post"""
+        db = self.SessionLocal()
+        try:
+            count = db.query(DocumentChunk).filter(
+                DocumentChunk.post_id == post_id
+            ).count()
+            return count
+        except Exception as e:
+            logger.error(f"Failed to get document count for post {post_id}: {str(e)}")
+            return 0
+        finally:
+            db.close()
+    
     def delete_document_chunks(self, post_id: int) -> bool:
         """Delete all chunks for a specific document"""
         db = self.SessionLocal()
@@ -216,6 +247,55 @@ class VectorStore:
             db.rollback()
             logger.error(f"Failed to delete chunks for post {post_id}: {str(e)}")
             return False
+        finally:
+            db.close()
+    
+    def store_document_summary(self, post_id: int, course_id: int, doc_name: str, post_name: str, summary: str) -> bool:
+        """Store document summary in the database"""
+        db = self.SessionLocal()
+        try:
+            # Check if summary already exists
+            existing_summary = db.query(DocumentSummary).filter(DocumentSummary.post_id == post_id).first()
+            
+            if existing_summary:
+                # Update existing summary
+                existing_summary.summary = summary
+                existing_summary.doc_name = doc_name
+                existing_summary.post_name = post_name
+                logger.info(f"Updated summary for post {post_id}")
+            else:
+                # Create new summary
+                new_summary = DocumentSummary(
+                    post_id=post_id,
+                    course_id=course_id,
+                    doc_name=doc_name,
+                    post_name=post_name,
+                    summary=summary
+                )
+                db.add(new_summary)
+                logger.info(f"Created new summary for post {post_id}")
+            
+            db.commit()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to store document summary for post {post_id}: {str(e)}")
+            db.rollback()
+            return False
+        finally:
+            db.close()
+    
+    def get_document_summary(self, post_id: int) -> Optional[str]:
+        """Retrieve document summary for a specific post"""
+        db = self.SessionLocal()
+        try:
+            summary_record = db.query(DocumentSummary).filter(DocumentSummary.post_id == post_id).first()
+            if summary_record:
+                return summary_record.summary
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get document summary for post {post_id}: {str(e)}")
+            return None
         finally:
             db.close()
     

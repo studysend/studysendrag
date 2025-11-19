@@ -43,12 +43,17 @@ check_prerequisites() {
         exit 1
     fi
     
-    if ! command_exists docker-compose; then
+    # Check for Docker Compose (v1 or v2)
+    if command_exists docker-compose; then
+        DOCKER_COMPOSE_CMD="docker-compose"
+    elif docker compose version >/dev/null 2>&1; then
+        DOCKER_COMPOSE_CMD="docker compose"
+    else
         print_error "Docker Compose is not installed. Please install Docker Compose first."
         exit 1
     fi
     
-    print_success "Prerequisites check passed"
+    print_success "Prerequisites check passed (using $DOCKER_COMPOSE_CMD)"
 }
 
 # Check environment file
@@ -98,22 +103,22 @@ deploy_production() {
     
     # Build images
     print_status "Building Docker images..."
-    docker-compose build --no-cache
+    $DOCKER_COMPOSE_CMD build --no-cache
     
     # Start services
     print_status "Starting services..."
-    docker-compose up -d
+    $DOCKER_COMPOSE_CMD up -d
     
     # Wait for services to be healthy
     print_status "Waiting for services to be ready..."
     sleep 10
     
     # Check service health
-    if docker-compose ps | grep -q "Up (healthy)"; then
+    if $DOCKER_COMPOSE_CMD ps | grep -q "Up (healthy)"; then
         print_success "Services are running and healthy"
     else
         print_warning "Some services may not be fully ready yet"
-        print_status "Check service status with: docker-compose ps"
+        print_status "Check service status with: $DOCKER_COMPOSE_CMD ps"
     fi
     
     print_success "Production deployment completed"
@@ -126,8 +131,8 @@ deploy_development() {
     print_status "Deploying development environment..."
     
     # Build and start development services
-    docker-compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache
-    docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+    $DOCKER_COMPOSE_CMD -f docker-compose.yml -f docker-compose.dev.yml build --no-cache
+    $DOCKER_COMPOSE_CMD -f docker-compose.yml -f docker-compose.dev.yml up -d
     
     print_success "Development deployment completed"
     print_status "API is available at: http://localhost:8001"
@@ -137,7 +142,7 @@ deploy_development() {
 # Stop services
 stop_services() {
     print_status "Stopping services..."
-    docker-compose down
+    $DOCKER_COMPOSE_CMD down
     print_success "Services stopped"
 }
 
@@ -149,7 +154,7 @@ cleanup() {
     
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         print_status "Cleaning up..."
-        docker-compose down -v --rmi all
+        $DOCKER_COMPOSE_CMD down -v --rmi all
         docker system prune -f
         print_success "Cleanup completed"
     else
@@ -161,25 +166,25 @@ cleanup() {
 show_logs() {
     service=${1:-}
     if [ -n "$service" ]; then
-        docker-compose logs -f "$service"
+        $DOCKER_COMPOSE_CMD logs -f "$service"
     else
-        docker-compose logs -f
+        $DOCKER_COMPOSE_CMD logs -f
     fi
 }
 
 # Show service status
 show_status() {
     print_status "Service Status:"
-    docker-compose ps
+    $DOCKER_COMPOSE_CMD ps
     
     print_status "\nService Health:"
-    docker-compose exec api curl -s http://localhost:8000/health | python -m json.tool 2>/dev/null || echo "API not responding"
+    $DOCKER_COMPOSE_CMD exec api curl -s http://localhost:8000/health | python -m json.tool 2>/dev/null || echo "API not responding"
 }
 
 # Run tests
 run_tests() {
     print_status "Running tests..."
-    docker-compose exec api python test_client.py
+    $DOCKER_COMPOSE_CMD exec api python test_client.py
 }
 
 # Show help

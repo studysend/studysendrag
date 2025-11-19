@@ -15,6 +15,7 @@ class ChatSession(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_email = Column(String, nullable=False, index=True)
     course_id = Column(Integer, nullable=False, index=True)
+    post_id = Column(Integer, nullable=True, index=True)  # Add post_id for new post-based sessions
     session_name = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -62,6 +63,18 @@ class DocumentChunk(Base):
     embedding = Column(Vector(1536))  # 1536 dimensions for text-embedding-3-small
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class DocumentSummary(Base):
+    __tablename__ = "document_summaries"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(Integer, nullable=False, unique=True, index=True)
+    course_id = Column(Integer, nullable=False, index=True)
+    doc_name = Column(String, nullable=False)
+    post_name = Column(String, nullable=True)
+    summary = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class CourseIndexStatus(Base):
     __tablename__ = "course_index_status"
     
@@ -78,13 +91,14 @@ class CourseIndexStatus(Base):
 # Pydantic Models for API
 class ChatSessionCreate(BaseModel):
     user_email: str
-    course_id: int
+    post_id: int
     session_name: str
 
 class ChatSessionResponse(BaseModel):
     id: int
     user_email: str
     course_id: int
+    post_id: Optional[int] = None
     session_name: str
     created_at: datetime
     updated_at: datetime
@@ -96,6 +110,7 @@ class ChatSessionResponse(BaseModel):
 class ChatMessageCreate(BaseModel):
     session_id: int
     content: str
+    action_type: Optional[str] = None  # For quick actions: generate-questions, explain-page, important-points, summarize-page
 
 class ChatMessageResponse(BaseModel):
     id: int
@@ -106,7 +121,7 @@ class ChatMessageResponse(BaseModel):
     timestamp: datetime
     
     class Config:
-        from_attributes = True
+        from_attributes = False  # Disable automatic attribute mapping to avoid SQLAlchemy metadata confusion
 
 class ChatResponse(BaseModel):
     message: str
