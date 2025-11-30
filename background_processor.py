@@ -208,25 +208,38 @@ class BackgroundProcessor:
                 doc_info['post_name']
             )
             
-            # Step 3: Chunk the content
+            # Step 3: Chunk the content with page tracking
             process_info.message = "Chunking document content"
             process_info.progress = 45.0
-            
-            chunks = self.doc_processor.chunk_text(processing_result['parsed_content'])
-            
+
+            # Use chunk_text_with_pages if page_map is available
+            page_map = processing_result.get('page_map', [])
+            if page_map:
+                chunk_data = self.doc_processor.chunk_text_with_pages(
+                    processing_result['parsed_content'],
+                    page_map
+                )
+                chunks = [c['text'] for c in chunk_data]
+            else:
+                # Fallback to regular chunking if no page map
+                chunks = self.doc_processor.chunk_text(processing_result['parsed_content'])
+                chunk_data = [{'text': c, 'page_number': None} for c in chunks]
+
             # Step 4: Prepare metadata
             process_info.message = "Preparing chunk metadata"
             process_info.progress = 60.0
-            
+
             metadata_list = []
-            for i, chunk in enumerate(chunks):
+            for i, chunk_info in enumerate(chunk_data):
                 metadata_list.append({
                     "post_id": doc_info['post_id'],
                     "course_id": doc_info['course_id'],
                     "doc_name": doc_info['doc_name'],
                     "post_name": doc_info['post_name'],
                     "chunk_index": i,
-                    "total_chunks": len(chunks)
+                    "total_chunks": len(chunks),
+                    "page_number": chunk_info.get('page_number'),  # Page number for references
+                    "subject": doc_info.get('subject', '')  # Subject for enhanced embeddings
                 })
             
             # Step 5: Store in vector database

@@ -17,9 +17,9 @@ from database import (
     SessionLocal
 )
 from models import (
-    ChatSessionCreate, ChatSessionResponse, ChatMessageCreate, 
+    ChatSessionCreate, ChatSessionResponse, ChatMessageCreate,
     ChatMessageResponse, ChatResponse, CourseInfo, CourseIndexStatusResponse,
-    UnindexedCoursesResponse, ChatSession
+    UnindexedCoursesResponse, ChatSession, ChatMessage
 )
 from chat_service import ChatService
 from document_processor import DocumentProcessor
@@ -636,6 +636,163 @@ async def get_user_sessions(user_email: str, db: Session = Depends(get_db)):
         logger.error(f"Failed to get user sessions for {user_email}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to retrieve user sessions: {str(e)}")
 
+# Get or create session for user + post (for chat persistence)
+@app.get("/chat/sessions/user/{user_email}/post/{post_id}")
+async def get_or_create_session_for_post(
+    user_email: str,
+    post_id: int,
+    post_title: str = "PDF Document",
+    db: Session = Depends(get_db)
+):
+    """
+    Get existing active session for user+post or create new one.
+    This enables chat persistence - users get their previous chat back.
+    """
+    try:
+        logger.info(f"🔍 Looking for session: user={user_email}, post={post_id}")
+
+        # First, let's see all sessions for this user
+        all_user_sessions = db.query(ChatSession).filter(
+            ChatSession.user_email == user_email
+        ).all()
+        logger.info(f"📊 Total sessions for user {user_email}: {len(all_user_sessions)}")
+        for sess in all_user_sessions:
+            logger.info(f"  - Session {sess.id}: post_id={sess.post_id}, is_active={sess.is_active}")
+
+        # Try to find existing active sessions (all of them)
+        all_sessions = db.query(ChatSession).filter(
+            ChatSession.user_email == user_email,
+            ChatSession.post_id == post_id,
+            ChatSession.is_active == True
+        ).order_by(ChatSession.updated_at.desc()).all()
+
+        logger.info(f"🔎 Found {len(all_sessions)} active sessions for user+post")
+
+        # Prefer sessions with messages, otherwise use most recent
+        existing_session = None
+        for sess in all_sessions:
+            msg_count = db.query(ChatMessage).filter(
+                ChatMessage.session_id == sess.id
+            ).count()
+            logger.info(f"  Session {sess.id}: {msg_count} messages")
+
+            if msg_count > 0:
+                existing_session = sess
+                logger.info(f"✅ Selected session {sess.id} with {msg_count} messages")
+                break
+
+        # If no session with messages, use the most recent one
+        if not existing_session and all_sessions:
+            existing_session = all_sessions[0]
+            logger.info(f"✅ No sessions with messages, using most recent: {existing_session.id}")
+
+        if existing_session:
+            # Get message count
+            message_count = db.query(ChatMessage).filter(
+                ChatMessage.session_id == existing_session.id
+            ).count()
+
+            # Deactivate other sessions to prevent duplicates
+            for sess in all_sessions:
+                if sess.id != existing_session.id:
+                    sess.is_active = False
+                    logger.info(f"🔒 Deactivated duplicate session {sess.id}")
+            db.commit()
+
+            return {
+                "id": existing_session.id,
+                "user_email": existing_session.user_email,
+                "session_name": existing_session.session_name,
+                "created_at": existing_session.created_at.isoformat(),
+                "updated_at": existing_session.updated_at.isoformat(),
+                "message_count": message_count,
+                "is_existing": True
+            }
+
+        # No existing session, create new one
+        logger.info(f"📝 No existing session found, creating new one for user {user_email}, post {post_id}")
+
+        # Get course_id from post
+        post_result = db.execute(text("""
+            SELECT course_id FROM post WHERE id = :post_id
+        """), {"post_id": post_id})
+        post_row = post_result.fetchone()
+
+        if not post_row:
+            raise HTTPException(status_code=404, detail=f"Post {post_id} not found")
+
+        course_id = post_row[0]
+
+        # Create new session
+        new_session = ChatSession(
+            user_email=user_email,
+            course_id=course_id,
+            post_id=post_id,
+            session_name=post_title,
+            is_active=True
+        )
+
+        db.add(new_session)
+        db.commit()
+        db.refresh(new_session)
+
+        logger.info(f"✅ Created new session {new_session.id}")
+
+        return {
+            "id": new_session.id,
+            "user_email": new_session.user_email,
+            "session_name": new_session.session_name,
+            "created_at": new_session.created_at.isoformat(),
+            "updated_at": new_session.updated_at.isoformat(),
+            "message_count": 0,
+            "is_existing": False
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get/create session: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to get/create session: {str(e)}")
+
+# Clear chat history for a session
+@app.delete("/chat/sessions/{session_id}/clear")
+async def clear_chat_history(session_id: int, db: Session = Depends(get_db)):
+    """
+    Clear all messages from a chat session.
+    This allows users to start fresh while keeping the session active.
+    """
+    try:
+        logger.info(f"Clearing chat history for session {session_id}")
+
+        # Check if session exists
+        session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Delete all messages for this session
+        deleted_count = db.query(ChatMessage).filter(
+            ChatMessage.session_id == session_id
+        ).delete()
+
+        db.commit()
+
+        logger.info(f"✅ Cleared {deleted_count} messages from session {session_id}")
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "deleted_count": deleted_count,
+            "message": f"Cleared {deleted_count} messages"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to clear chat history: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to clear chat history: {str(e)}")
+
 # Get session messages
 @app.get("/chat/sessions/{session_id}/messages")
 async def get_session_messages(session_id: int, db: Session = Depends(get_db)):
@@ -691,7 +848,7 @@ async def get_session_messages(session_id: int, db: Session = Depends(get_db)):
                     "session_id": int(row[1]),
                     "message_type": str(row[2]),
                     "content": str(row[3]),
-                    "metadata": clean_metadata,  # Guaranteed to be a clean dict
+                    "message_metadata": clean_metadata,  # Guaranteed to be a clean dict
                     "timestamp": str(row[5]) if row[5] else ""
                 }
                 logger.info(f"Response message {i}: {type(response_msg)}")
@@ -707,7 +864,7 @@ async def get_session_messages(session_id: int, db: Session = Depends(get_db)):
                         "session_id": int(row[1]),
                         "message_type": str(row[2]),
                         "content": str(row[3]),
-                        "metadata": {},
+                        "message_metadata": {},
                         "timestamp": str(row[5]) if row[5] else ""
                     }
                     response_messages.append(response_msg)
@@ -715,11 +872,11 @@ async def get_session_messages(session_id: int, db: Session = Depends(get_db)):
                     continue
         
         logger.info(f"Successfully converted {len(response_messages)} messages to response format")
-        
+
         # Return as raw JSON response to completely bypass FastAPI validation
         import json
         return Response(
-            content=json.dumps(response_messages),
+            content=json.dumps({"messages": response_messages}),
             media_type="application/json"
         )
         

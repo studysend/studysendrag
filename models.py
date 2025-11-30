@@ -51,7 +51,7 @@ class DocumentIndex(Base):
 
 class DocumentChunk(Base):
     __tablename__ = "document_chunks"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     post_id = Column(Integer, nullable=False, index=True)
     course_id = Column(Integer, nullable=False, index=True)
@@ -60,7 +60,8 @@ class DocumentChunk(Base):
     chunk_text = Column(Text, nullable=False)
     chunk_index = Column(Integer, nullable=False)
     total_chunks = Column(Integer, nullable=False)
-    embedding = Column(Vector(1536))  # 1536 dimensions for text-embedding-3-small
+    page_number = Column(Integer, nullable=True)  # Page number where this chunk appears
+    embedding = Column(Vector(3072))  # 3072 dimensions for text-embedding-3-large (upgraded for better accuracy)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class DocumentSummary(Base):

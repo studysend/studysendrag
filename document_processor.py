@@ -1,6 +1,6 @@
 import os
 import boto3
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import tempfile
 from llama_cloud_services import LlamaParse
 from dotenv import load_dotenv
@@ -70,33 +70,65 @@ class DocumentProcessor:
             logger.error(f"Failed to download {doc_url} (key: {s3_key if 's3_key' in locals() else doc_url}): {str(e)}")
             return False
     
-    def parse_pdf_with_llama(self, file_path: str, file_name: str) -> str:
-        """Parse PDF using LlamaParse"""
+    def parse_pdf_with_llama(self, file_path: str, file_name: str) -> Dict[str, Any]:
+        """Parse PDF using LlamaParse and extract page information"""
         try:
             parser = self._init_llama_parser(file_name)
-            
+
             # Parse the PDF file using the file path
             logger.info(f"Parsing PDF with LlamaParse: {file_name}")
             parsed_result = parser.load_data(file_path)
-            
-            # Extract text content from parsed result
+
+            # Extract text content from parsed result with page tracking
+            text_content = ""
+            page_map = []  # List of (start_char, end_char, page_number)
+            current_position = 0
+
             if isinstance(parsed_result, list) and len(parsed_result) > 0:
-                # LlamaParse typically returns a list of Document objects
-                text_content = ""
-                for doc in parsed_result:
+                # LlamaParse typically returns a list of Document objects, one per page
+                for page_idx, doc in enumerate(parsed_result):
+                    page_num = page_idx + 1  # Page numbers start at 1
+                    page_text = ""
+
                     if hasattr(doc, 'text'):
-                        text_content += doc.text + "\n"
+                        page_text = doc.text
                     elif hasattr(doc, 'get_content'):
-                        text_content += doc.get_content() + "\n"
+                        page_text = doc.get_content()
                     else:
-                        text_content += str(doc) + "\n"
-                return text_content.strip()
+                        page_text = str(doc)
+
+                    # Add page separator for better chunking
+                    if page_text:
+                        start_pos = current_position
+                        text_content += page_text + "\n"
+                        end_pos = current_position + len(page_text)
+
+                        # Track which characters belong to which page
+                        page_map.append({
+                            'start': start_pos,
+                            'end': end_pos,
+                            'page': page_num
+                        })
+
+                        current_position = end_pos + 1  # +1 for the newline
+
+                return {
+                    'text': text_content.strip(),
+                    'page_map': page_map
+                }
             elif isinstance(parsed_result, str):
-                return parsed_result
+                # If we just get a string, we can't determine pages
+                return {
+                    'text': parsed_result,
+                    'page_map': []
+                }
             else:
                 # Handle other response formats
-                return str(parsed_result)
-                
+                return {
+                    'text': str(parsed_result),
+                    'page_map': []
+                }
+
         except Exception as e:
             logger.error(f"Failed to parse PDF {file_name}: {str(e)}")
             raise
@@ -107,56 +139,122 @@ class DocumentProcessor:
             # Create temporary file
             with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
                 temp_path = temp_file.name
-            
+
             try:
                 # Download from S3
                 if not self.download_from_s3(doc_url, temp_path):
                     return {"success": False, "error": "Failed to download from S3"}
-                
-                # Parse with LlamaParse
-                parsed_content = self.parse_pdf_with_llama(temp_path, doc_name)
-                
+
+                # Parse with LlamaParse (now returns dict with text and page_map)
+                parse_result = self.parse_pdf_with_llama(temp_path, doc_name)
+
                 return {
                     "success": True,
-                    "parsed_content": parsed_content,
+                    "parsed_content": parse_result['text'],
+                    "page_map": parse_result['page_map'],
                     "doc_name": doc_name,
                     "doc_url": doc_url
                 }
-                
+
             finally:
                 # Clean up temporary file
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
-                    
+
         except Exception as e:
             logger.error(f"Document processing failed for {doc_name}: {str(e)}")
             return {"success": False, "error": str(e)}
     
-    def chunk_text(self, text: str, chunk_size: int = 1000, overlap: int = 200) -> List[str]:
-        """Split text into overlapping chunks"""
+    def chunk_text(self, text: str, chunk_size: int = 600, overlap: int = 150) -> List[str]:
+        """
+        Split text into overlapping chunks optimized for educational content.
+
+        Smaller chunks (600 chars vs 1000) provide better precision for educational Q&A:
+        - Educational content has focused concepts per paragraph
+        - Students ask specific questions that need specific answers
+        - Reduces "noise" from unrelated content in same chunk
+        - 25% overlap maintains context between chunks
+        """
         if len(text) <= chunk_size:
             return [text]
-        
+
         chunks = []
         start = 0
-        
+
         while start < len(text):
             end = start + chunk_size
-            
+
+            # Try to break at sentence boundary for better semantic coherence
+            if end < len(text):
+                # Look for sentence endings within the last 100 characters
+                sentence_end = text.rfind('.', start, end)
+                if sentence_end > start + chunk_size - 100:
+                    end = sentence_end + 1
+
+            chunk = text[start:end].strip()
+            if chunk:
+                chunks.append(chunk)
+
+            start = end - overlap
+
+        return chunks
+
+    def chunk_text_with_pages(self, text: str, page_map: List[Dict[str, Any]],
+                              chunk_size: int = 600, overlap: int = 150) -> List[Dict[str, Any]]:
+        """
+        Split text into overlapping chunks with page number tracking.
+        Optimized for educational content with smaller chunks for better precision.
+        """
+        if len(text) <= chunk_size:
+            # Single chunk - find its page number
+            page_num = self._find_page_for_position(0, page_map)
+            return [{
+                'text': text,
+                'page_number': page_num,
+                'start_pos': 0,
+                'end_pos': len(text)
+            }]
+
+        chunks = []
+        start = 0
+
+        while start < len(text):
+            end = start + chunk_size
+
             # Try to break at sentence boundary
             if end < len(text):
                 # Look for sentence endings within the last 100 characters
                 sentence_end = text.rfind('.', start, end)
                 if sentence_end > start + chunk_size - 100:
                     end = sentence_end + 1
-            
-            chunk = text[start:end].strip()
-            if chunk:
-                chunks.append(chunk)
-            
+
+            chunk_text = text[start:end].strip()
+            if chunk_text:
+                # Find the page number for this chunk (use start position)
+                page_num = self._find_page_for_position(start, page_map)
+
+                chunks.append({
+                    'text': chunk_text,
+                    'page_number': page_num,
+                    'start_pos': start,
+                    'end_pos': end
+                })
+
             start = end - overlap
-            
+
         return chunks
+
+    def _find_page_for_position(self, position: int, page_map: List[Dict[str, Any]]) -> Optional[int]:
+        """Find which page a text position belongs to"""
+        if not page_map:
+            return None
+
+        for page_info in page_map:
+            if page_info['start'] <= position <= page_info['end']:
+                return page_info['page']
+
+        # If not found, return the last page (position might be at the very end)
+        return page_map[-1]['page'] if page_map else None
     
     def generate_document_summary(self, content: str, doc_name: str, post_name: str) -> str:
         """Generate a comprehensive summary of the document using OpenAI"""

@@ -55,16 +55,20 @@ class ChatService:
             ChatMessage.session_id == session_id
         ).order_by(ChatMessage.timestamp.asc()).all()
     
-    def save_message(self, session_id: int, message_type: str, content: str, 
+    def save_message(self, session_id: int, message_type: str, content: str,
                     metadata: Optional[Dict] = None, db: Session = None) -> ChatMessage:
         """Save a message to the database"""
+        logger.info(f"💾 save_message called: session_id={session_id}, message_type={message_type}, content_length={len(content)}")
+
         # Create a new database session if none provided
         if db is None:
+            logger.info("📂 Creating new DB session for save_message")
             db = SessionLocal()
             close_db = True
         else:
+            logger.info("📂 Using existing DB session for save_message")
             close_db = False
-            
+
         try:
             # Ensure metadata is clean and JSON-serializable
             clean_metadata = {}
@@ -75,7 +79,7 @@ class ChatService:
                         clean_metadata[key] = value
                     else:
                         clean_metadata[key] = str(value)
-            
+
             message = ChatMessage(
                 session_id=session_id,
                 message_type=message_type,
@@ -83,20 +87,33 @@ class ChatService:
                 message_metadata=clean_metadata
             )
             db.add(message)
+            logger.info("➕ Message added to session, committing...")
             db.commit()
+            logger.info("✅ Message committed successfully")
             db.refresh(message)
+            logger.info(f"🎉 Message saved with ID: {message.id}")
             return message
+        except Exception as e:
+            logger.error(f"❌ Error saving message: {e}")
+            db.rollback()
+            raise
         finally:
             if close_db:
+                logger.info("🔒 Closing DB session")
                 db.close()
     
-    def get_relevant_context(self, query: str, post_id: int, max_chunks: int = 5) -> List[Dict[str, Any]]:
-        """Get relevant document chunks for the query with content filtering"""
+    def get_relevant_context(self, query: str, post_id: int, max_chunks: int = 5,
+                            subject: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get relevant document chunks for the query with content filtering.
+        Now supports subject-enhanced search for better educational content retrieval.
+        """
         # Get more chunks initially to allow for filtering
         initial_results = self.vector_store.search_similar_chunks(
             query=query,
             post_id=post_id,
-            n_results=max_chunks * 3  # Get more to find better matches
+            n_results=max_chunks * 3,  # Get more to find better matches
+            subject=subject  # Pass subject for enhanced search
         )
 
         # Filter results based on similarity score with higher threshold for better relevance
@@ -379,8 +396,9 @@ FORMATTING RULES:
             # Use the enhanced query for retrieval
             enhanced_search_query = self.prompt_optimizer.enhance_retrieval_query(optimized_query)
             
-            # Get relevant document chunks using the optimized query
-            relevant_chunks = self.get_relevant_context(enhanced_search_query, post_id)
+            # Get relevant document chunks using the optimized query with subject context
+            subject = post_info.get('subject')
+            relevant_chunks = self.get_relevant_context(enhanced_search_query, post_id, subject=subject)
 
             logger.info(f"Retrieved {len(relevant_chunks)} relevant chunks for post {post_id}")
             if relevant_chunks:
@@ -397,13 +415,23 @@ FORMATTING RULES:
                 if valid_chunks:
                     context_text = "\n\nRelevant content:\n"
                     for i, chunk in enumerate(valid_chunks, 1):
-                        context_text += f"\n[Source {i}]: {chunk['content']}\n"
+                        page_num = chunk['metadata'].get('page_number')
+                        page_ref = f" (Page {page_num})" if page_num else ""
+                        context_text += f"\n[Source {i}{page_ref}]: {chunk['content']}\n"
+
+                        # Create a concise preview of the chunk content (first 100 chars)
+                        content_preview = chunk['content'][:100].strip()
+                        if len(chunk['content']) > 100:
+                            content_preview += "..."
+
                         sources.append({
                             "source_id": i,
                             "doc_name": chunk['metadata'].get('doc_name', 'Unknown'),
                             "post_name": chunk['metadata'].get('post_name', 'Unknown'),
                             "post_id": chunk['metadata'].get('post_id'),
-                            "similarity_score": chunk['similarity_score']
+                            "page_number": chunk['metadata'].get('page_number'),
+                            "similarity_score": chunk['similarity_score'],
+                            "content_preview": content_preview  # Add preview for display
                         })
                 else:
                     # No good matches found, add a note about this
@@ -1038,8 +1066,9 @@ Create a well-organized summary (250-350 words) covering the entire document."""
             # Use the enhanced query for retrieval
             retrieval_query = self.prompt_optimizer.enhance_retrieval_query(optimized_query)
             
-            # Get relevant document chunks from the specific post
-            relevant_chunks = self.get_relevant_context(retrieval_query, post_id)
+            # Get relevant document chunks from the specific post with subject context
+            subject = post_info.get('subject')
+            relevant_chunks = self.get_relevant_context(retrieval_query, post_id, subject=subject)
             
             # Build context from relevant chunks
             context_text = ""
@@ -1052,13 +1081,23 @@ Create a well-organized summary (250-350 words) covering the entire document."""
                 if valid_chunks:
                     context_text = "\n\nRelevant content:\n"
                     for i, chunk in enumerate(valid_chunks, 1):
-                        context_text += f"\n[Source {i}]: {chunk['content']}\n"
+                        page_num = chunk.get('metadata', {}).get('page_number')
+                        page_ref = f" (Page {page_num})" if page_num else ""
+                        context_text += f"\n[Source {i}{page_ref}]: {chunk['content']}\n"
+
+                        # Create a concise preview of the chunk content (first 100 chars)
+                        content_preview = chunk['content'][:100].strip()
+                        if len(chunk['content']) > 100:
+                            content_preview += "..."
+
                         sources.append({
                             "source_id": i,
-                            "doc_name": chunk.get('doc_name', 'Unknown'),
-                            "post_name": chunk.get('post_name', 'Unknown'),
-                            "post_id": chunk.get('post_id', post_id),
-                            "similarity_score": chunk.get('similarity_score', 0)
+                            "doc_name": chunk.get('metadata', {}).get('doc_name', 'Unknown'),
+                            "post_name": chunk.get('metadata', {}).get('post_name', 'Unknown'),
+                            "post_id": chunk.get('metadata', {}).get('post_id', post_id),
+                            "page_number": chunk.get('metadata', {}).get('page_number'),
+                            "similarity_score": chunk.get('similarity_score', 0),
+                            "content_preview": content_preview  # Add preview for display
                         })
             
             # Prepare conversation messages with strict context enforcement
